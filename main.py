@@ -11,43 +11,67 @@ import json
 import os
 
 
-def make_hadamard_matrix(size):
-    # N, N/12, N/20 이 2의 배수인지 체크해야함.
-    # print(log2(size)-floor(log2(size)))
-    # print(log2(size/12.0)-floor(log2(size/12)))
-    # print(log2(size/20.0)-floor(log2(size/20.0)))
-    n = floor(log2(size))
-    if n-floor(n) != 0:
-        print("size is not 2^n")
-        return None
-    print("size: ", size)
-    H2 = np.array([[1, 1], [1, -1]])
-    H = np.array([[1, 1], [1, -1]])
-    for i in range(n-1):
-        H = np.kron(H, H2)
-    return np.where(H == -1, 0, H)
+class HadamardPattern():
+    def create_normal_order_hmasks(self, imgsize):
+        masks = []
+        H = hadamard(imgsize**2)
+        H = np.array((H+1)/2)
+        for i in tqdm(range(imgsize**2), desc='generating normal order hadamard mask patterns...'):
+            mask = np.zeros([imgsize, imgsize])
+            for j in range(imgsize**2):
+                row = floor(j/imgsize)
+                col = j % imgsize
+                mask[row][col] = H[i][j]
+            mask = np.transpose(np.array(mask))
+            masks.append(mask)
+        return masks
+
+    def create_cc_order_hmasks(self, imgsize):
+        normals = self.create_normal_order_hmasks(imgsize)
+        cc = []
+        for ii in tqdm(range(len(normals)), desc='generating cake-cutting order hadamard mask patterns...'):
+            cc.append((self.get_num_of_chunk(normals[ii]), normals[ii]))
+        cc.sort(key=lambda item: item[0])
+        return [item[1] for item in cc]
+
+    def check_chunk(self, mat, x, y, visited):
+        # out of index check
+        if visited.sum() == len(visited)*len(visited[0]):
+            return
+        if x > len(visited)-1 or y > len(visited[0])-1:
+            return
+        # double visit check
+        if visited[x][y] == 1:
+            return
+        visited[x][y] = 1
+        # x dir moving
+        if x != len(mat)-1:
+            if mat[x][y] == mat[x+1][y] and visited[x+1][y] == 0:
+                self.check_chunk(mat, x+1, y, visited)
+
+        # y dir moving
+        if y != len(mat[0])-1:
+            if mat[x][y] == mat[x][y+1] and visited[x][y+1] == 0:
+                self.check_chunk(mat, x, y+1, visited)
+
+    def get_num_of_chunk(self, mat):
+        num_row = len(mat)
+        num_col = len(mat[0])
+        visited = np.zeros([num_row, num_col])
+        count = 0
+        idx = 0
+        while idx != len(visited)*len(visited[0]):
+            if visited[floor(idx/num_row)][idx % num_col] == 0:
+                self.check_chunk(mat, floor(idx/num_row),
+                                 idx % num_col, visited)
+                count += 1
+
+            idx += 1
+        return count
 
 
-def create_normal_order_hmasks(imgsize):
-    masks = []
-    H = hadamard(imgsize**2)
-
-    H = np.array((H+1)/2)
-
-    for i in tqdm(range(imgsize**2), desc='generating hadamard mask patterns...'):
-        mask = np.zeros([imgsize, imgsize])
-        for j in range(imgsize**2):
-            row = floor(j/imgsize)
-            col = j % imgsize
-            mask[row][col] = H[i][j]
-        mask = np.transpose(np.array(mask))
-        masks.append(mask)
-    return masks
-
-# %%
-
-
-imgsize = 128
+# %% normal order reconstruction
+imgsize = 32
 
 # load image, convert to grayscale, store as array (matrix)
 ground_obj = np.asarray(Image.open("./img/lenna.png").convert('L'))
@@ -55,14 +79,13 @@ ground_obj = np.asarray(Image.open("./img/lenna.png").convert('L'))
 
 # Resize image to smaller size for simulation
 test_obj = resize(ground_obj, (imgsize, imgsize))
+hp = HadamardPattern()
+masks = hp.create_normal_order_hmasks(imgsize)
 
-masks = create_normal_order_hmasks(imgsize)
-
-# %% sampling and reconstruction process.
 rtn = np.zeros([imgsize, imgsize])
 #sample_num = floor(len(masks)/2)
 sample_num = (len(masks))
-for i in range(sample_num):
+for i in tqdm(range(sample_num), desc="reconstructing image..."):
     projection = np.multiply(test_obj, masks[i])
     rtn = rtn + masks[i] * projection.sum()
 
@@ -79,6 +102,38 @@ for i in range(imgsize):
             rtn[i][j] = mean
 plt.figure()
 plt.imshow(rtn)
+
+
+# %% cc_order reconstruction
+imgsize = 32
+
+# load image, convert to grayscale, store as array (matrix)
+ground_obj = np.asarray(Image.open("./img/lenna.png").convert('L'))
+# Choose new size (don't go higher than 128x128 or Hadamard will kill you)
+
+# Resize image to smaller size for simulation
+test_obj = resize(ground_obj, (imgsize, imgsize))
+hp = HadamardPattern()
+masks = hp.create_cc_order_hmasks(imgsize)
+# %%
+rtn = np.zeros([imgsize, imgsize])
+sample_num = floor(len(masks)/1)
+#sample_num = (len(masks))
+for i in range(sample_num):
+    projection = np.multiply(test_obj, masks[i])
+    rtn = rtn + masks[i] * projection.sum()
+
+plt.figure()
+plt.imshow(rtn)
+mean = rtn.mean()
+std = rtn.std()
+for i in range(imgsize):
+    for j in range(imgsize):
+        if (rtn[i][j] > mean + 2*std):
+            rtn[i][j] = mean
+plt.figure()
+plt.imshow(rtn)
+
 
 # %% save masks data in json
 
@@ -102,4 +157,3 @@ path = "/Users/zowan/Documents/python/hadamard-spi/masks128.json"
 
 with open(path, 'w') as f:
     json.dump(dumped, f)
-# %%
