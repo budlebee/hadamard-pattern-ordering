@@ -15,7 +15,7 @@ class HadamardPattern():
     def create_normal_order_hmasks(self, imgsize):
         masks = []
         H = hadamard(imgsize**2)
-        H = np.array((H+1)/2)
+        #H = np.array((H+1)/2)
         for i in tqdm(range(imgsize**2), desc='generating normal order hadamard mask patterns...'):
             mask = np.zeros([imgsize, imgsize])
             for j in range(imgsize**2):
@@ -105,34 +105,126 @@ plt.imshow(rtn)
 
 
 # %% cc_order reconstruction
-imgsize = 32
 
 # load image, convert to grayscale, store as array (matrix)
-ground_obj = np.asarray(Image.open("./img/lenna.png").convert('L'))
 # Choose new size (don't go higher than 128x128 or Hadamard will kill you)
 
 # Resize image to smaller size for simulation
-test_obj = resize(ground_obj, (imgsize, imgsize))
+masksize = 64
 hp = HadamardPattern()
-masks = hp.create_cc_order_hmasks(imgsize)
+masks = hp.create_cc_order_hmasks(masksize)
 # %%
+
+
+def zoom_matrix(mat, zoom_ratio):
+    # matrix 를 zoom_ratio 만큼 확대. zoom ratio 는 정수.
+    # zoom ratio 가 2면, 1칸이 2x2 칸으로 확대.
+    row = len(mat)
+    col = len(mat[0])
+    zoomed = np.zeros([row*zoom_ratio, col*zoom_ratio])
+
+    for x in range(row):
+        for y in range(col):
+            for p in range(zoom_ratio):
+                for q in range(zoom_ratio):
+                    zoomed[x+p][y+q] = mat[x][y]
+    return zoomed
+
+
+# 10% sampling
+imgsize = 64*2
+img_set = []
+obj_set = []
+img_set.append(np.asarray(Image.open("./img/cameraman.png").convert('L')))
+img_set.append(np.asarray(Image.open("./img/ghost.png").convert('L')))
+img_set.append(np.asarray(Image.open("./img/lenna.png").convert('L')))
+for item in img_set:
+    obj = resize(item, (imgsize, imgsize))
+    obj_set.append(obj)
+    rtn = np.zeros([imgsize, imgsize])
+    ori_num = (len(masks))
+    for i in tqdm(range(ori_num), desc="reconstructing original image..."):
+        mask = zoom_matrix(masks[i], 2)
+        projection = np.multiply(obj, mask)
+        rtn = rtn + mask * projection.sum()
+    mean = rtn.mean()
+    std = rtn.std()
+    plt.figure()
+    plt.imshow(rtn)
+    rtn = np.zeros([imgsize, imgsize])
+    sample_num = floor(len(masks)/10)
+    for i in tqdm(range(sample_num), desc="reconstructing 10{%} sampled image..."):
+        mask = zoom_matrix(masks[i], 2)
+        projection = np.multiply(obj, mask)
+        rtn = rtn + mask * projection.sum()
+    plt.figure()
+    plt.imshow(rtn)
+plt.figure()
+print('done')
+
+# 33% sampling
+imgsize = 64*4
+img_set = []
+obj_set = []
+img_set.append(np.asarray(Image.open("./img/cameraman.png").convert('L')))
+img_set.append(np.asarray(Image.open("./img/ghost.png").convert('L')))
+img_set.append(np.asarray(Image.open("./img/lenna.png").convert('L')))
+for item in img_set:
+    obj = resize(item, (imgsize, imgsize))
+    obj_set.append(obj)
+    rtn = np.zeros([imgsize, imgsize])
+    ori_num = (len(masks))
+    for i in range(ori_num):
+        projection = np.multiply(obj, masks[i])
+        rtn = rtn + masks[i] * projection.sum()
+    mean = rtn.mean()
+    std = rtn.std()
+    plt.figure()
+    plt.imshow(rtn)
+    rtn = np.zeros([imgsize, imgsize])
+    sample_num = floor(len(masks)/3)
+    for i in range(sample_num):
+        projection = np.multiply(obj, masks[i])
+        rtn = rtn + masks[i] * projection.sum()
+    plt.figure()
+    plt.imshow(rtn)
+plt.figure()
+print('done')
+# %%
+ground_obj = np.asarray(Image.open("./img/cameraman.png").convert('L'))
+test_obj = resize(ground_obj, (imgsize, imgsize))
 rtn = np.zeros([imgsize, imgsize])
-sample_num = floor(len(masks)/1)
+ori_num = (len(masks))
+for i in range(ori_num):
+    projection = np.multiply(test_obj, masks[i])
+    rtn = rtn + masks[i] * projection.sum()
+
+mean = rtn.mean()
+std = rtn.std()
+# for i in range(imgsize):
+#    for j in range(imgsize):
+#        if (rtn[i][j] > mean + std):
+#            rtn[i][j] = mean
+plt.figure()
+plt.imshow(rtn)
+
+rtn = np.zeros([imgsize, imgsize])
+sample_num = floor(len(masks))
 #sample_num = (len(masks))
 for i in range(sample_num):
     projection = np.multiply(test_obj, masks[i])
     rtn = rtn + masks[i] * projection.sum()
 
-plt.figure()
-plt.imshow(rtn)
 mean = rtn.mean()
 std = rtn.std()
-for i in range(imgsize):
-    for j in range(imgsize):
-        if (rtn[i][j] > mean + 2*std):
-            rtn[i][j] = mean
+# for i in range(imgsize):
+#    for j in range(imgsize):
+#        if (rtn[i][j] > mean + std):
+#            rtn[i][j] = mean
 plt.figure()
 plt.imshow(rtn)
+# plt.figure()
+# plt.imshow(rtn)
 
 
 # %% save masks data in json
@@ -152,8 +244,10 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 dumped = json.dumps(masks, cls=NumpyEncoder)
-path = "/Users/zowan/Documents/python/hadamard-spi/masks128.json"
+path = "/Users/zowan/Documents/python/hadamard-spi/cc_masks128.json"
 #path = os.path.dirname(os.path.abspath(__file__))
 
 with open(path, 'w') as f:
     json.dump(dumped, f)
+
+# %%
