@@ -70,6 +70,21 @@ class HadamardPattern():
         return count
 
 
+def zoom_matrix(mat, zoom_ratio):
+    # matrix 를 zoom_ratio 만큼 확대. zoom ratio 는 정수.
+    # zoom ratio 가 2면, 1칸이 2x2 칸으로 확대.
+    row = len(mat)
+    col = len(mat[0])
+    zoomed = np.zeros([row*zoom_ratio, col*zoom_ratio])
+
+    for x in range(row):
+        for y in range(col):
+            for p in range(zoom_ratio):
+                for q in range(zoom_ratio):
+                    zoomed[x+p][y+q] = mat[x][y]
+    return zoomed
+
+
 # %% normal order reconstruction
 imgsize = 32
 
@@ -110,57 +125,48 @@ plt.imshow(rtn)
 # Choose new size (don't go higher than 128x128 or Hadamard will kill you)
 
 # Resize image to smaller size for simulation
-masksize = 64
+masksize = 32
 hp = HadamardPattern()
 masks = hp.create_cc_order_hmasks(masksize)
 # %%
 
-
-def zoom_matrix(mat, zoom_ratio):
-    # matrix 를 zoom_ratio 만큼 확대. zoom ratio 는 정수.
-    # zoom ratio 가 2면, 1칸이 2x2 칸으로 확대.
-    row = len(mat)
-    col = len(mat[0])
-    zoomed = np.zeros([row*zoom_ratio, col*zoom_ratio])
-
-    for x in range(row):
-        for y in range(col):
-            for p in range(zoom_ratio):
-                for q in range(zoom_ratio):
-                    zoomed[x+p][y+q] = mat[x][y]
-    return zoomed
+# 하다마드 마스킹 패턴은 확대를 한뒤, 웨이팅 값을 얻어온 후
+# 그걸 reconstruction 할때는 확대하기 전 원본 사이즈에 곱해서 할것.
 
 
 # 10% sampling
-imgsize = 64*2
+imgsize = masksize
+zoomedSize = masksize*2
 img_set = []
 obj_set = []
 img_set.append(np.asarray(Image.open("./img/cameraman.png").convert('L')))
 img_set.append(np.asarray(Image.open("./img/ghost.png").convert('L')))
 img_set.append(np.asarray(Image.open("./img/lenna.png").convert('L')))
 for item in img_set:
-    obj = resize(item, (imgsize, imgsize))
+    obj = resize(item, (zoomedSize, zoomedSize))
     obj_set.append(obj)
-    rtn = np.zeros([imgsize, imgsize])
+    rtn = np.zeros([masksize, masksize])
     ori_num = (len(masks))
     for i in tqdm(range(ori_num), desc="reconstructing original image..."):
-        mask = zoom_matrix(masks[i], 2)
-        projection = np.multiply(obj, mask)
-        rtn = rtn + mask * projection.sum()
+        zoomed = zoom_matrix(masks[i], 2)
+        projection = np.multiply(obj, zoomed)
+        rtn = rtn + zoomed * projection.sum()
     mean = rtn.mean()
     std = rtn.std()
     plt.figure()
     plt.imshow(rtn)
-    rtn = np.zeros([imgsize, imgsize])
+
+    rtn = np.zeros([masksize, masksize])
     sample_num = floor(len(masks)/10)
     for i in tqdm(range(sample_num), desc="reconstructing 10{%} sampled image..."):
-        mask = zoom_matrix(masks[i], 2)
-        projection = np.multiply(obj, mask)
-        rtn = rtn + mask * projection.sum()
+        zoomed = zoom_matrix(masks[i], 2)
+        projection = np.multiply(obj, zoomed)
+        rtn = rtn + zoomed * projection.sum()
     plt.figure()
     plt.imshow(rtn)
 plt.figure()
 print('done')
+# %%
 
 # 33% sampling
 imgsize = 64*4

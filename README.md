@@ -72,3 +72,9 @@ Cake-Cutting ordering 은 마스킹 패턴에서 분절된 영역의 갯수가 �
 하다마드 패턴에서 네츄럴 오더 순으로 앞의 10%만 뽑아서 이미지를 재구성 하면 원본을 알아볼 수 없는 이미지가 되지만, CC ordering 의 경우 앞의 10% 만 뽑아도 대강의 형태는 알아볼 수 있고, 33% 정도만 뽑아도 꽤 괜찮은 품질의 이미지가 재구성 된다. 
 
 ex) 64 x 64 이미지를 재구성하고 싶다면 4096x4096 크기의 하다마드 매트릭스를 만들고, 매트릭스 각 row 를 통해 4096개의 하다마드 마스킹 패턴들을 만든다. 그다음 각 패턴의 블록 넘버 숫자를 계산하고, 오더링을 하고, 10% 정도를 샘플링(약 400개의 패턴을 뽑아서 사용) 한다음, 원본 이미지를 마스킹 패턴에 프로젝션하고(element-wise multiplication), 프로젝션한 행렬의 모든 성분값을 더한걸 weight 로 한 뒤 이미지를 재구성한다.
+
+
+## Reference
+
+Single-pixel imaging 12 years on: a review (2020)
+GRAHAM M. GIBSON,1,2 STEVEN D. JOHNSON,1,3 AND MILES J. PADGETT
